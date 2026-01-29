@@ -16,7 +16,7 @@
   - [x] NodeID Definition
   - [x] XOR Metric Logic
   - [x] K-Bucket Structure
-  - [ ] Routing Table Management
+  - [x] Routing Table Management
   - [ ] Local Storage & Backup (Persist stored files to disk)
 
 - [ ] **RPC & Wire Protocol**
