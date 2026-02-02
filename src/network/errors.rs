@@ -4,6 +4,6 @@ pub enum NetworkError {
     Timeout,
     Write,
     Read,
-    WrongRPC,
+    CouldNotParseRPC,
     Send,
 }

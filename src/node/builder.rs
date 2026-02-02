@@ -1,8 +1,8 @@
 use super::{Node, NodeError};
 
 pub struct NodeBuilder {
-    version: usize,
     listenning_port: u16,
+    version: usize,
 }
 
 impl NodeBuilder {

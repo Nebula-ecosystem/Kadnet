@@ -1,94 +1,49 @@
 use cadentis::net::{TcpListener, TcpStream};
 use cadentis::task;
-use cadentis::time::timeout;
-use cryptal::primitives::U256;
 use std::net::SocketAddr;
-use std::sync::mpsc::Sender;
-use std::time::Duration;
 
 use crate::network::errors::NetworkError;
 use crate::network::rpc::Rpc;
 
-pub(crate) async fn listen(
-    port: u16,
-    transmitter1: Sender<(U256, SocketAddr)>,
-    transmitter2: Sender<U256>,
-) -> Result<(), NetworkError> {
+pub(crate) async fn listen(port: u16) -> Result<(), NetworkError> {
     let listener =
         TcpListener::bind(&format!("127.0.0.1:{port}")).map_err(|_| NetworkError::Connection)?;
 
     loop {
-        let (stream, addr) = listener
+        let (stream, _addr) = listener
             .accept()
             .await
             .map_err(|_| NetworkError::Connection)?;
 
-        let tx1 = transmitter1.clone();
-        let tx2 = transmitter2.clone();
         task::spawn(async move {
-            if let Some(rpc) = parse_stream(stream, addr).await {
-                match rpc {
-                    Rpc::Ping => {
-                        let _ = send_rpc(addr, Rpc::Pong).await?;
-                    }
-                    Rpc::Connect(node) => tx1.send(node).map_err(|_| NetworkError::Send)?,
-                    Rpc::Search(node) => tx2.send(node).map_err(|_| NetworkError::Send)?,
-                    _ => {}
-                }
-            }
-
+            handle_connection(stream).await;
             Ok::<(), NetworkError>(())
         })
         .await?;
     }
 }
 
-async fn parse_stream(stream: TcpStream, addr: SocketAddr) -> Option<Rpc> {
+async fn handle_connection(stream: TcpStream) {
     let mut first = [0u8; 1];
     match stream.read(&mut first).await {
-        Ok(0) => return None,
+        Ok(0) | Err(_) => return,
         Ok(_) => {}
-        Err(_) => return None,
     }
 
-    let rpc = Rpc::from_byte(&first[..0])?;
-    if ![Rpc::Ping, Rpc::Pong].contains(&rpc) {
-        return Some(rpc);
-    }
-
-    let max_len;
-    let max_time;
+    let rpc = match Rpc::from_bytes(&first[..1]) {
+        Some(rpc) if [Rpc::Ping, Rpc::Pong].contains(&rpc) => rpc,
+        _ => return,
+    };
 
     match rpc {
-        Rpc::Connect(_) => {
-            max_len = 32;
-            max_time = Duration::from_millis(400);
+        Rpc::Ping => {
+            let _ = stream.write_all(&[Rpc::Pong.as_byte()]).await;
         }
-        _ => return None,
+        Rpc::Pong => {}
     }
-
-    let result = timeout(max_time, async {
-        let mut buf = vec![0u8; max_len];
-        let mut read_bytes = 0;
-
-        while read_bytes < max_len {
-            match stream.read(&mut buf[read_bytes..]).await {
-                Ok(0) => return None,
-                Ok(n) => read_bytes += n,
-                Err(_) => return None,
-            }
-        }
-
-        let number: [u8; 32] = buf[..32].try_into().unwrap();
-
-        Some(Rpc::Connect((U256::from(number), addr)))
-    })
-    .await;
-
-    result.unwrap_or_default()
 }
 
-pub(crate) async fn send_rpc(addr: SocketAddr, rpc: Rpc) -> Result<Rpc, NetworkError> {
+pub(crate) async fn send_rpc(addr: SocketAddr, rpc: Rpc) -> Result<TcpStream, NetworkError> {
     let addr_str = addr.to_string();
 
     let stream = TcpStream::connect(&addr_str)
@@ -100,16 +55,25 @@ pub(crate) async fn send_rpc(addr: SocketAddr, rpc: Rpc) -> Result<Rpc, NetworkE
         .await
         .map_err(|_| NetworkError::Write)?;
 
-    let mut buf = [0u8; 1024];
-    let n = stream
-        .read(&mut buf)
-        .await
-        .map_err(|_| NetworkError::Read)?;
+    Ok(stream)
+}
 
-    let response = Rpc::from_byte(&buf[..n]);
+pub(crate) async fn read_rpc(stream: TcpStream) -> Result<Rpc, NetworkError> {
+    let mut buffer = [0; 4];
+    let n = match stream.read(&mut buffer).await {
+        Ok(n) => {
+            if n == 0 {
+                return Err(NetworkError::Connection);
+            }
+            n
+        }
+        Err(_) => {
+            return Err(NetworkError::Read);
+        }
+    };
 
-    match response {
+    match Rpc::from_bytes(&buffer[..n]) {
         Some(r) => Ok(r),
-        None => Err(NetworkError::WrongRPC),
+        None => Err(NetworkError::CouldNotParseRPC),
     }
 }

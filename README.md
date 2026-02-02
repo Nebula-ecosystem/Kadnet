@@ -12,37 +12,66 @@
 
 ## 📊 Project Status
 
-- [ ] **Core DHT Logic (Kademlia Engine)**
-  - [x] NodeID Definition
-  - [x] XOR Metric Logic
-  - [x] K-Bucket Structure
-  - [x] Routing Table Management
-  - [ ] Local Storage & Backup (Persist stored files to disk)
+## 1. Fondations DHT (Kademlia)
 
-- [ ] **RPC & Wire Protocol**
-  - [ ] Message Serialization
-  - [ ] Transaction ID & RPC Matching
-  - [ ] Core RPC Operations (`PING`/`PONG`, `FIND_NODE`, `STORE`/`FIND_VALUE`)
+- [x] NodeID Definition
+- [x] XOR Distance Metric
+- [x] K-Bucket Structure & Rules
+- [x] Routing Table Logic
 
-- [ ] **Iterative Operations**
-  - [ ] Recursive Node Lookup
-  - [ ] Key/Value Propagation Logic
+## 2. RPC Protocol
 
-- [ ] **Async Networking (Transport)**
-  - [ ] Async UDP Socket Integration
-  - [ ] Handlers for Inbound/Outbound UDP Streams
-  - [ ] Peer Handshaking (Identity exchange)
-  - [ ] NAT Traversal & Keep-alive
+- [ ] Message Format & Serialization
+- [ ] Transaction IDs & Timeout Handling
+- [x] `PING` / `PONG`
+- [ ] `FIND_NODE`
+- [ ] `STORE`
+- [ ] `FIND_VALUE`
 
-- [ ] **Security (Nebula Shield)**
-  - [ ] Message Signing & Verification (Ed25519)
-  - [ ] User Account Management (Secure Authentication & Identity)
-  - [ ] Multi-Device Support (Secure Key & Session Handling)
-  - [ ] Resistance to Sybil & Eclipse Attacks
+## 3. Stockage Local
 
-- [ ] **Nebula Ecosystem Bridges**
-  - [ ] Bootstrap Peer Discovery Service
-  - [ ] Peer Reputation & Scoring System
+- [ ] In-Memory Key/Value Store
+- [ ] Disk Persistence
+- [ ] Backup & Restore
+- [ ] Storage Quotas & Eviction Policy
+
+## 4. Lookup & Iterative Algorithms
+
+- [ ] Iterative Node Lookup
+- [ ] Iterative Value Lookup
+- [ ] Store Propagation Strategy
+- [ ] Bucket Refresh
+
+## 5. Networking & Transport
+
+- [ ] Async UDP Socket
+- [ ] Send / Receive Pipeline
+- [ ] Inbound / Outbound Dispatch
+- [ ] Peer Liveness Detection
+- [ ] NAT Traversal & Keep-alive
+
+## 6. Peer Identity & Sessions
+
+- [ ] Node Identity Exchange
+- [ ] Capability Negotiation
+- [ ] Session Tracking
+
+## 7. Security (Nebula Shield)
+
+- [ ] Message Signing & Verification (Ed25519)
+- [ ] Secure Node Identity
+- [ ] User Account Binding
+- [ ] Multi-Device Key Management
+- [ ] Sybil Resistance
+- [ ] Eclipse Attack Mitigation
+
+## 8. Nebula Network Services
+
+- [ ] Bootstrap Nodes
+- [ ] Peer Reputation & Scoring
+- [ ] Network Metrics
+- [ ] Relay / Gateway Nodes
+
 
 ## 🚀 Getting Started
 

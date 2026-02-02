@@ -1,24 +1,22 @@
 use super::errors::NodeError;
-use crate::network::rpc::Rpc;
-use crate::network::tcp::{self, send_rpc};
+use crate::consts::BOOTSTRAPS_ADDRESS;
+use crate::network::errors::NetworkError;
+use crate::network::tcp::listen;
 use crate::routing::RoutingTable;
 use crate::routing::entry::NodeEntry;
 use crate::routing::id::generate_id;
+use crate::routing::kbucket::ping_entries;
 
-use cadentis::select;
 use cadentis::sync::Mutex;
-use cadentis::task::JoinSet;
 use cadentis::time::sleep;
+use cadentis::{join, task};
 use cryptal::keys::ed25519;
-use cryptal::primitives::U256;
-use std::net::SocketAddr;
-use std::sync::mpsc::{Receiver, channel};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 pub struct Node {
     pub(crate) listenning_port: u16,
-    pub(crate) routing: Mutex<RoutingTable>,
+    pub(crate) routing: Arc<Mutex<RoutingTable>>,
 }
 
 impl Node {
@@ -30,65 +28,50 @@ impl Node {
 
         Ok(Self {
             listenning_port,
-            routing: Mutex::new(RoutingTable::new_from_id(id)),
+            routing: Arc::new(Mutex::new(RoutingTable::new_from_id(id))),
         })
     }
 
-    pub async fn start(&mut self) -> Result<(), NodeError> {
-        let (transmitter1, receiver1) = channel();
-        let (transmitter2, receiver2) = channel();
+    pub async fn start(&mut self) -> Result<(), NetworkError> {
+        let port = self.listenning_port;
+        let routing = self.routing.clone();
 
-        let listen = tcp::listen(self.listenning_port, transmitter1, transmitter2);
-        let add_node = self.add_node(receiver1);
-        let search = self.search_node(receiver2);
+        for (id, socket_addr) in BOOTSTRAPS_ADDRESS.iter().filter(|(_, socket_addr)| {
+            !socket_addr.ip().is_loopback() || socket_addr.port() != self.listenning_port
+        }) {
+            let mut routing_gard = self.routing.lock().await;
 
-        select! {
-            add_node => |_| println!("ah"),
-            search => |_| println!("eh"),
-            listen => |_| println!("oh"),
+            let boostrap_entry = NodeEntry::new(*id, *socket_addr).await?;
+
+            routing_gard.insert(boostrap_entry).await.unwrap();
         }
+
+        let listener = async move {
+            loop {
+                if let Err(e) = listen(port).await {
+                    println!("{e:?}");
+                }
+            }
+        };
+
+        let refresher = async move {
+            loop {
+                let buckets = {
+                    let rt = routing.lock().await;
+                    rt.buckets.clone()
+                };
+
+                for kbucket in buckets {
+                    task::spawn(async move { ping_entries(kbucket).await });
+                }
+
+                sleep(Duration::from_secs(30)).await;
+            }
+        };
+
+        join!(listener, refresher);
 
         Ok(())
-    }
-
-    pub(crate) async fn add_node(&self, receiver: Receiver<(U256, SocketAddr)>) {
-        while let Ok((id, addr)) = receiver.recv() {
-            let entry = NodeEntry::new(id, addr).await.unwrap();
-
-            let mut routing = self.routing.lock().await;
-
-            routing.insert(entry).await.unwrap();
-        }
-    }
-
-    pub(crate) async fn search_node(&self, receiver: Receiver<U256>) {
-        while let Ok(id) = receiver.recv() {
-            let mut routing = self.routing.lock().await;
-
-            let closests = routing.get_closests(id);
-            if closests[0].id != id {
-                let rpc = Rpc::Search(id);
-
-                let addr = Arc::new(OnceLock::new());
-                let mut set = JoinSet::new();
-
-                let discover_node =
-                    async |res: Arc<OnceLock<_>>, addr, rpc| match send_rpc(addr, rpc).await {
-                        Ok(Rpc::Search(a)) => res.set(a).unwrap(),
-                        _ => {
-                            sleep(Duration::from_secs(100000));
-                        }
-                    };
-
-                closests.into_iter().for_each(|node| {
-                    let rpc_clone = rpc.clone();
-                    let addr_clone = addr.clone();
-                    set.spawn(discover_node(addr_clone, node.addr, rpc_clone));
-                });
-
-                let _ = set.race_n(1).await;
-            }
-        }
     }
 
     pub fn join() -> Result<(), NodeError> {
