@@ -9,6 +9,8 @@ pub(crate) enum Rpc {
     Pong,
     FindNode(U256),
     FoundNodes(Vec<(U256, SocketAddr)>),
+    FindValue(U256),
+    FoundValue(U256, Vec<u8>),
 }
 
 impl Rpc {
@@ -41,6 +43,18 @@ impl Rpc {
                 }
                 bytes
             }
+            Rpc::FindValue(target) => {
+                let mut bytes = vec![2];
+                bytes.extend_from_slice(target.as_ref());
+                bytes
+            }
+            Rpc::FoundValue(key, value) => {
+                let mut bytes = vec![5];
+                bytes.extend_from_slice(key.as_ref());
+                bytes.extend_from_slice(&(value.len() as u32).to_be_bytes());
+                bytes.extend_from_slice(value);
+                bytes
+            }
         }
     }
 
@@ -48,13 +62,15 @@ impl Rpc {
         match bytes.first()? {
             0 => Some(Rpc::Ping),
             1 => Some(Rpc::Pong),
-            2 => Self::parse_find_node(bytes),
+            2 => Self::parse_id(bytes).map(Self::FindNode),
             3 => Self::parse_found_nodes(bytes),
+            4 => Self::parse_id(bytes).map(Self::FindValue),
+            5 => Self::parse_found_value(bytes),
             _ => None,
         }
     }
 
-    fn parse_find_node(bytes: &[u8]) -> Option<Self> {
+    fn parse_id(bytes: &[u8]) -> Option<U256> {
         if bytes.len() != 33 {
             return None;
         }
@@ -63,7 +79,7 @@ impl Rpc {
         target_bytes.copy_from_slice(&bytes[1..33]);
         let target = U256::from(target_bytes);
 
-        Some(Rpc::FindNode(target))
+        Some(target)
     }
 
     fn parse_found_nodes(bytes: &[u8]) -> Option<Self> {
@@ -126,5 +142,25 @@ impl Rpc {
         let port = u16::from_be_bytes([bytes[16], bytes[17]]);
 
         Some(SocketAddr::V6(SocketAddrV6::new(ip, port, 0, 0)))
+    }
+
+    fn parse_found_value(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() < 37 {
+            return None;
+        }
+
+        let mut key_bytes = [0u8; 32];
+        key_bytes.copy_from_slice(&bytes[1..33]);
+        let key = U256::from(key_bytes);
+
+        let len = u32::from_be_bytes([bytes[33], bytes[34], bytes[35], bytes[36]]) as usize;
+
+        if bytes.len() != 37 + len {
+            return None;
+        }
+
+        let value = bytes[37..].to_vec();
+
+        Some(Rpc::FoundValue(key, value))
     }
 }

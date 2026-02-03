@@ -1,5 +1,5 @@
 use super::Rpc;
-use crate::consts::{PING_MAX_RETRY, T_MAX_MS};
+use crate::consts::{INTERVAL_MS, RPC_MAX_RETRY, T_MAX_MS};
 use crate::network::errors::NetworkError;
 use crate::network::tcp::{read_rpc, send_rpc};
 
@@ -13,7 +13,7 @@ use std::time::Duration;
 
 pub(crate) async fn ping(addr: SocketAddr) -> Result<Duration, NetworkError> {
     let (res, duration) = instrumented(
-        retry(PING_MAX_RETRY, move || async move {
+        retry(RPC_MAX_RETRY, move || async move {
             timeout(Duration::from_millis(T_MAX_MS), async {
                 let stream = send_rpc(addr, Rpc::Ping).await?;
                 read_rpc(stream).await
@@ -21,7 +21,7 @@ pub(crate) async fn ping(addr: SocketAddr) -> Result<Duration, NetworkError> {
             .await
             .map_err(|_| NetworkError::Timeout)?
         })
-        .set_interval(Duration::from_millis(200)),
+        .set_interval(Duration::from_millis(INTERVAL_MS)),
     )
     .await;
 
@@ -29,7 +29,7 @@ pub(crate) async fn ping(addr: SocketAddr) -> Result<Duration, NetworkError> {
 }
 
 pub(crate) async fn pong(stream: Arc<Mutex<TcpStream>>) {
-    let _ = retry(PING_MAX_RETRY, {
+    let _ = retry(RPC_MAX_RETRY, {
         move || {
             let stream = Arc::clone(&stream);
             async move {

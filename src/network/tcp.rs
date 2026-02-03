@@ -7,8 +7,10 @@ use std::sync::Arc;
 use crate::network::errors::NetworkError;
 use crate::network::rpc::Rpc;
 use crate::network::rpc::find_node;
+use crate::network::rpc::lookup::find_value;
 use crate::network::rpc::pong;
 use crate::routing::RoutingTable;
+use crate::storage::core::LocalStorage;
 
 pub(crate) async fn listen(
     port: u16,
@@ -42,6 +44,7 @@ async fn handle_connection(
     match read_rpc(stream.clone()).await {
         Ok(Rpc::Ping) => pong(stream).await,
         Ok(Rpc::FindNode(target)) => find_node(addr, routing, target).await,
+        Ok(Rpc::FindValue(target)) => find_value(addr, LocalStorage::new(), routing, target).await,
         _ => {
             // Ignore
         }

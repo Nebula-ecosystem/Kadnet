@@ -26,7 +26,7 @@
 - [x] `PING` / `PONG`
 - [x] `FIND_NODE`
 - [ ] `STORE`
-- [ ] `FIND_VALUE`
+- [x] `FIND_VALUE`
 
 ## 3. Stockage Local
 
