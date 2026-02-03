@@ -1,8 +1,7 @@
 use super::entry::NodeEntry;
 use super::errors::RoutingError;
-use super::kbucket::InsertDecision;
-use super::kbucket::KBucket;
-use crate::consts::{KUSIZE, N_BUCKETS, SMALL_BUCKET_COUNT};
+use super::kbucket::{InsertDecision, KBucket};
+use crate::consts::{ALPHA, KUSIZE, N_BUCKETS, SMALL_BUCKET_COUNT};
 use crate::network::rpc::ping;
 
 use cadentis::sync::Mutex;
@@ -69,5 +68,50 @@ impl RoutingTable {
         }
 
         Ok(())
+    }
+
+    pub(crate) async fn get_closests(&self, target: U256) -> Vec<NodeEntry> {
+        let bucket_number = self.find_corresponding_bucket(target).unwrap_or(0);
+
+        let bucket_clone = self.buckets[bucket_number].clone();
+        let bucket_guard = bucket_clone.lock().await;
+        let mut closests = bucket_guard.select_n_closests(ALPHA, target);
+
+        if closests.len() == ALPHA {
+            return closests;
+        }
+
+        for d in 1..N_BUCKETS {
+            let left = bucket_number as isize - d as isize;
+            let right = bucket_number + d;
+
+            if left >= 0 {
+                let left_clone = self.buckets[left as usize].clone();
+                let left_guard = left_clone.lock().await;
+                let mut other_closests = left_guard.select_n_closests(ALPHA, target);
+
+                closests.append(&mut other_closests);
+            }
+
+            if closests.len() >= ALPHA {
+                break;
+            }
+
+            if right < N_BUCKETS {
+                let right_clone = self.buckets[right].clone();
+                let right_guard = right_clone.lock().await;
+                let mut other_closests = right_guard.select_n_closests(ALPHA, target);
+
+                closests.append(&mut other_closests);
+            }
+
+            if closests.len() >= ALPHA {
+                break;
+            }
+        }
+
+        closests.truncate(ALPHA);
+
+        closests
     }
 }

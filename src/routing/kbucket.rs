@@ -3,6 +3,7 @@ use super::errors::BucketError;
 use crate::network::rpc::ping;
 
 use cadentis::sync::Mutex;
+use cryptal::primitives::U256;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,6 +14,7 @@ pub(crate) enum InsertDecision {
     Refreshed,
 }
 
+#[derive(Clone)]
 pub(crate) struct KBucket {
     entries: VecDeque<NodeEntry>,
     capacity: usize,
@@ -68,6 +70,30 @@ impl KBucket {
         if let Some(entry) = self.entries.iter_mut().find(|ne| ne.id == entry.id) {
             entry.update_respond_time(duration);
         }
+    }
+
+    pub(crate) fn select_n_closests(&self, n: usize, target: U256) -> Vec<NodeEntry> {
+        let mut out = Vec::with_capacity(n);
+
+        for item in self.entries.iter() {
+            let mut computed = *item;
+            computed.compute_score(target);
+
+            let pos = out
+                .iter()
+                .position(|ne: &NodeEntry| computed.score < ne.score)
+                .unwrap_or(out.len());
+
+            if pos < n {
+                if out.len() == n {
+                    out.pop();
+                }
+
+                out.insert(pos, *item);
+            }
+        }
+
+        out
     }
 }
 

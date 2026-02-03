@@ -48,7 +48,7 @@ impl Node {
 
         let listener = async move {
             loop {
-                if let Err(e) = listen(port).await {
+                if let Err(e) = listen(port, self.routing.clone()).await {
                     println!("{e:?}");
                 }
             }

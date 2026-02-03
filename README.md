@@ -24,7 +24,7 @@
 - [ ] Message Format & Serialization
 - [ ] Transaction IDs & Timeout Handling
 - [x] `PING` / `PONG`
-- [ ] `FIND_NODE`
+- [x] `FIND_NODE`
 - [ ] `STORE`
 - [ ] `FIND_VALUE`
 
