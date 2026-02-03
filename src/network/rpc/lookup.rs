@@ -69,3 +69,26 @@ pub(crate) async fn find_value(
         find_node(addr, routing, target).await
     }
 }
+
+pub(crate) async fn store_value(addr: SocketAddr, local_storage: LocalStorage, value: Vec<u8>) {
+    let rpc = match local_storage.store(value) {
+        Ok(_) => Rpc::Ok,
+        Err(_) => Rpc::Error,
+    };
+
+    let _ = retry(RPC_MAX_RETRY, move || {
+        let rpc = rpc.clone();
+        async move {
+            let rpc = rpc.clone();
+
+            timeout(Duration::from_millis(T_MAX_MS), async {
+                let rpc = rpc.clone();
+                send_rpc(addr, rpc).await
+            })
+            .await
+            .map_err(|_| NetworkError::Timeout)?
+        }
+    })
+    .set_interval(Duration::from_millis(INTERVAL_MS))
+    .await;
+}

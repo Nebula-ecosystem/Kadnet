@@ -11,6 +11,9 @@ pub(crate) enum Rpc {
     FoundNodes(Vec<(U256, SocketAddr)>),
     FindValue(U256),
     FoundValue(U256, Vec<u8>),
+    StoreValue(Vec<u8>),
+    Ok,
+    Error,
 }
 
 impl Rpc {
@@ -55,6 +58,14 @@ impl Rpc {
                 bytes.extend_from_slice(value);
                 bytes
             }
+            Rpc::StoreValue(value) => {
+                let mut bytes = vec![6];
+                bytes.extend_from_slice(&(value.len() as u32).to_be_bytes());
+                bytes.extend_from_slice(value);
+                bytes
+            }
+            Rpc::Ok => vec![7],
+            Rpc::Error => vec![8],
         }
     }
 
@@ -66,6 +77,9 @@ impl Rpc {
             3 => Self::parse_found_nodes(bytes),
             4 => Self::parse_id(bytes).map(Self::FindValue),
             5 => Self::parse_found_value(bytes),
+            6 => Self::parse_store_value(bytes),
+            7 => Some(Rpc::Ok),
+            8 => Some(Rpc::Error),
             _ => None,
         }
     }
@@ -162,5 +176,21 @@ impl Rpc {
         let value = bytes[37..].to_vec();
 
         Some(Rpc::FoundValue(key, value))
+    }
+
+    fn parse_store_value(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() < 5 {
+            return None;
+        }
+
+        let len = u32::from_be_bytes([bytes[1], bytes[2], bytes[3], bytes[4]]) as usize;
+
+        if bytes.len() != 5 + len {
+            return None;
+        }
+
+        let value = bytes[5..].to_vec();
+
+        Some(Rpc::StoreValue(value))
     }
 }

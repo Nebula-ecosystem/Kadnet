@@ -9,4 +9,8 @@ impl LocalStorage {
     pub(crate) fn contains(&self, _key: U256) -> Option<Vec<u8>> {
         unimplemented!()
     }
+
+    pub(crate) fn store(&self, _value: Vec<u8>) -> Result<(), ()> {
+        unimplemented!();
+    }
 }

@@ -21,11 +21,11 @@
 
 ## 2. RPC Protocol
 
-- [ ] Message Format & Serialization
+- [x] Message Format & Serialization
 - [ ] Transaction IDs & Timeout Handling
 - [x] `PING` / `PONG`
 - [x] `FIND_NODE`
-- [ ] `STORE`
+- [x] `STORE`
 - [x] `FIND_VALUE`
 
 ## 3. Stockage Local
