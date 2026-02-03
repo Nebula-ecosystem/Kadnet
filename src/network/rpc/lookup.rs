@@ -8,16 +8,21 @@ use cryptal::primitives::U256;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-pub(crate) async fn find_node(addr: SocketAddr, routing: Arc<Mutex<RoutingTable>>, target: U256) {
+pub(crate) async fn find_node(
+    addr: SocketAddr,
+    routing: Arc<Mutex<RoutingTable>>,
+    tx_id: [u8; 4],
+    target: U256,
+) {
     let routing_guard = routing.lock().await;
-    let closests = routing_guard
+    let closests: Vec<(U256, SocketAddr)> = routing_guard
         .get_closests(target)
         .await
         .iter()
         .map(|ne| (ne.id, ne.addr))
         .collect();
 
-    let rpc = Rpc::FoundNodes(closests);
+    let rpc = Rpc::FoundNodes(tx_id, closests);
 
     let _ = send_rpc(addr, rpc).await;
 }
@@ -26,20 +31,26 @@ pub(crate) async fn find_value(
     addr: SocketAddr,
     local_storage: LocalStorage,
     routing: Arc<Mutex<RoutingTable>>,
+    tx_id: [u8; 4],
     target: U256,
 ) {
     if let Some(value) = local_storage.contains(target) {
-        let rpc = Rpc::FoundValue(target, value);
+        let rpc = Rpc::FoundValue(tx_id, target, value);
         let _ = send_rpc(addr, rpc).await;
     } else {
-        find_node(addr, routing, target).await;
+        find_node(addr, routing, tx_id, target).await;
     }
 }
 
-pub(crate) async fn store_value(addr: SocketAddr, local_storage: LocalStorage, value: Vec<u8>) {
+pub(crate) async fn store_value(
+    addr: SocketAddr,
+    local_storage: LocalStorage,
+    tx_id: [u8; 4],
+    value: Vec<u8>,
+) {
     let rpc = match local_storage.store(value) {
-        Ok(_) => Rpc::Ok,
-        Err(_) => Rpc::Error,
+        Ok(_) => Rpc::Ok(tx_id),
+        Err(_) => Rpc::Error(tx_id),
     };
 
     let _ = send_rpc(addr, rpc).await;

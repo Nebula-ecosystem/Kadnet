@@ -1,6 +1,7 @@
 use super::errors::NodeError;
 use crate::consts::BOOTSTRAPS_ADDRESS;
 use crate::network::errors::NetworkError;
+use crate::network::rpc::id::{CLEANUP_STARTED, start_cleanup_loop};
 use crate::network::tcp::listen;
 use crate::routing::RoutingTable;
 use crate::routing::entry::NodeEntry;
@@ -35,6 +36,12 @@ impl Node {
     pub async fn start(&mut self) -> Result<(), NetworkError> {
         let port = self.listenning_port;
         let routing = self.routing.clone();
+
+        CLEANUP_STARTED.get_or_init(|| {
+            task::spawn(async {
+                start_cleanup_loop().await;
+            });
+        });
 
         for (id, socket_addr) in BOOTSTRAPS_ADDRESS.iter().filter(|(_, socket_addr)| {
             !socket_addr.ip().is_loopback() || socket_addr.port() != self.listenning_port

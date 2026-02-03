@@ -2,6 +2,7 @@ use crate::consts::{INTERVAL_MS, RPC_MAX_RETRY, T_MAX_MS};
 use crate::network::errors::NetworkError;
 use crate::network::rpc::Rpc;
 use crate::network::rpc::find_node;
+use crate::network::rpc::id::remove_tid;
 use crate::network::rpc::lookup::{find_value, store_value};
 use crate::network::rpc::pong;
 use crate::routing::RoutingTable;
@@ -46,10 +47,20 @@ async fn handle_connection(
     routing: Arc<Mutex<RoutingTable>>,
 ) {
     match read_rpc(stream.clone()).await {
-        Ok(Rpc::Ping) => pong(stream).await,
-        Ok(Rpc::FindNode(target)) => find_node(addr, routing, target).await,
-        Ok(Rpc::FindValue(target)) => find_value(addr, LocalStorage::new(), routing, target).await,
-        Ok(Rpc::StoreValue(value)) => store_value(addr, LocalStorage::new(), value).await,
+        Ok(Rpc::Ping(tx_id)) => pong(stream, tx_id).await,
+        Ok(Rpc::FindNode(tx_id, target)) => find_node(addr, routing, tx_id, target).await,
+        Ok(Rpc::FindValue(tx_id, target)) => {
+            find_value(addr, LocalStorage::new(), routing, tx_id, target).await
+        }
+        Ok(Rpc::StoreValue(tx_id, value)) => {
+            store_value(addr, LocalStorage::new(), tx_id, value).await
+        }
+        Ok(Rpc::Ok(tx_id)) => {
+            remove_tid(&tx_id);
+        }
+        Ok(Rpc::Error(tx_id)) => {
+            remove_tid(&tx_id);
+        }
         _ => {
             // Ignore
         }
